@@ -51,9 +51,8 @@ For every important claim in the candidate report, classify it as one of:
 Rules:
 - Cite frame IDs from the manifest for every classification. Use the clip-relative timestamps of those frames.
 - Each classification cites frames from one camera angle only. Angles do not share a clock. When a claim is visible on more than one angle, write one classification per angle.
-- Report observations reproduced by both passes.
-- Report observations that appear in only one pass.
-- Report timestamp disagreements and body-side disagreements.
+- The pass comparison block was computed by code from the two timelines: which observations pair up, which appear in only one pass, and body-side disagreements. Do not recompute or restate it. Use it to decide which candidate claims are weakened by a disagreement, and check those claims against the frames.
+- Report a timestamp disagreement only when paired observations differ in onset or span in a way that changes a claim.
 - Report unsupported claims and plausible alternatives the candidate report missed.
 - Decide whether the candidate ranking should be retained, changed, or marked inconclusive.
 - Agreement matters only when both passes independently describe the same visible evidence.

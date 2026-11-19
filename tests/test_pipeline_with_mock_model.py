@@ -105,7 +105,11 @@ def test_mock_pipeline_writes_artifacts_and_keeps_passes_isolated(synthetic_vide
         assert observation.end_time_s == pytest.approx(max(cited))
     assert any(item.category == MechanismCategory.INSUFFICIENT for item in candidate.candidates)
     assert judge.ranking_decision == RankingDecision.INCONCLUSIVE
-    assert judge.body_side_disagreements
+    # Pairing comes from compare.py: the judge receives it, and the report prints it once.
+    assert "<pass_comparison_json>" in judge_call.user_text
+    assert "body_side_disagreements" in judge_call.user_text
+    assert "Body-side disagreements" in report
+    assert "according to the judge" not in report
     combined = "\n".join(
         [
             observer.model_dump_json(),

@@ -165,11 +165,7 @@ def validate_judge(report: JudgeReport, manifest: FrameManifest) -> list[str]:
         _lint(
             "judge",
             [
-                *report.reproduced_by_both_passes,
-                *report.only_in_first_pass,
-                *report.only_in_second_pass,
                 *report.timestamp_disagreements,
-                *report.body_side_disagreements,
                 *report.unsupported_claims,
                 *report.missing_plausible_alternatives,
                 report.ranking_rationale,

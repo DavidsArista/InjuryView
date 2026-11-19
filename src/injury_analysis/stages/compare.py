@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 
 from injury_analysis.models.schemas import BodySide, Observation, ObserverReport
 from injury_analysis.video.frames import FrameManifest
@@ -16,6 +17,7 @@ class PassComparison:
     only_in_first: list[str]
     only_in_second: list[str]
     tentative_pairs: list[str]
+    paired: list[str] = field(default_factory=list)
 
 
 def compare_observations(
@@ -31,6 +33,7 @@ def compare_observations(
     disagreements: list[str] = []
     only_first: list[str] = []
     tentative: list[str] = []
+    paired: list[str] = []
     used_second: set[int] = set()
     for left in first.observations:
         partner_index = _partner_index(left, second.observations, used_second, manifest)
@@ -39,6 +42,11 @@ def compare_observations(
             continue
         used_second.add(partner_index)
         right = second.observations[partner_index]
+        paired.append(
+            f"{left.observation_id} ~ {right.observation_id} phase={left.phase.value} "
+            f"on {_angle_label(left, manifest)} "
+            f"{left.start_time_s:.2f}-{left.end_time_s:.2f}s vs {right.start_time_s:.2f}-{right.end_time_s:.2f}s"
+        )
         is_tentative = _player(left) != _player(right)
         if is_tentative:
             tentative.append(
@@ -64,7 +72,13 @@ def compare_observations(
         only_in_first=only_first,
         only_in_second=only_second,
         tentative_pairs=tentative,
+        paired=paired,
     )
+
+
+def comparison_json(comparison: PassComparison) -> str:
+    """The comparison as JSON for the judge prompt. Computed by code, not by a model."""
+    return json.dumps(asdict(comparison), indent=2)
 
 
 def _partner_index(

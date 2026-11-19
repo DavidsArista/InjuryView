@@ -130,7 +130,6 @@ def _artifacts():
                 related_observation_ids=["o001"],
             )
         ],
-        reproduced_by_both_passes=["The stride change is in both passes."],
         ranking_decision=RankingDecision.INCONCLUSIVE,
         ranking_rationale="The visible record does not separate the possibilities.",
         unsupported_claims=["No unsupported diagnostic claim was introduced."],

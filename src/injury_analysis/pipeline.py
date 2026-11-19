@@ -34,6 +34,7 @@ from injury_analysis.models.validation import validate_observer
 from injury_analysis.provenance import file_sha256, request_fingerprint
 from injury_analysis.stages.blind_reanalysis import run_blind_reanalysis
 from injury_analysis.stages.candidate_analyzer import run_candidate_analyzer
+from injury_analysis.stages.compare import compare_observations
 from injury_analysis.stages.judge import run_judge
 from injury_analysis.stages.observer import build_observer_request, run_observer
 from injury_analysis.stages.materials import stage_manifest
@@ -160,6 +161,8 @@ def run_pipeline(config: RunConfig, adapter: ModelAdapter | None = None) -> Pipe
             candidate,
             blind,
             output_dir,
+            # Full manifest: pairing needs every cited frame's angle and clock.
+            comparison=compare_observations(observer, blind, manifest),
             video_name=video_name,
             max_individual_images=config.max_individual_images,
             subjects=config.subjects,
