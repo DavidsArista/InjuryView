@@ -134,11 +134,12 @@ class ClaimAssessment(APIModel):
 
 class JudgeReport(APIModel):
     claim_assessments: list[ClaimAssessment] = Field(min_length=1)
-    reproduced_by_both_passes: list[str] = Field(default_factory=list)
-    only_in_first_pass: list[str] = Field(default_factory=list)
-    only_in_second_pass: list[str] = Field(default_factory=list)
-    timestamp_disagreements: list[str] = Field(default_factory=list)
-    body_side_disagreements: list[str] = Field(default_factory=list)
+    # Pairing the two passes (which observations match, which appear in one pass, body-side
+    # disagreements) is computed by stages/compare.py and given to the judge as input.
+    timestamp_disagreements: list[str] = Field(
+        default_factory=list,
+        description="Paired observations whose onset or span differs in a way that affects a claim.",
+    )
     unsupported_claims: list[str] = Field(default_factory=list)
     missing_plausible_alternatives: list[str] = Field(default_factory=list)
     ranking_decision: RankingDecision
@@ -170,7 +171,15 @@ class CandidateArtifact(CandidateReport):
     )
 
 
+# Artifacts written before 2026-11-19 also hold reproduced_by_both_passes, only_in_first_pass,
+# only_in_second_pass and body_side_disagreements. Ignore those when reading old runs; the
+# model-facing JudgeReport still forbids them.
+_LEGACY_JUDGE_FIELDS = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+
 class JudgeArtifact(JudgeReport):
+    model_config = _LEGACY_JUDGE_FIELDS
+
     producer: Producer
     model_name: str
     timestamp_authority: Literal["video_presentation_timestamp"]

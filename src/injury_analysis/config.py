@@ -57,6 +57,10 @@ class RunConfig(BaseModel):
     frames_per_sheet: int = 6
     sheet_columns: int = 3
     stage_images: str = "cited"
+    # Run the blind pass at the same time as observer -> candidate. It needs only the frames,
+    # so this saves one model call of wall time. Turn off to debug, or so the blind pass can
+    # read the observer's images from a provider's prompt cache.
+    parallel_passes: bool = True
     subjects: list[str] = []
     clips: list[ClipSpec] = []
 

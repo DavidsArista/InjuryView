@@ -206,17 +206,13 @@ def _judge(request: ModelRequest) -> JudgeReport:
         )
     return JudgeReport(
         claim_assessments=assessments,
-        reproduced_by_both_passes=["Both fixture passes cover the extracted frame span."],
-        only_in_first_pass=comparison.only_in_first,
-        only_in_second_pass=comparison.only_in_second,
         timestamp_disagreements=[],
-        body_side_disagreements=comparison.body_side_disagreements,
         unsupported_claims=["Fixture pattern language is not a pixel observation."],
         missing_plausible_alternatives=["A vision-model pass over the extracted frames is still required."],
         ranking_decision=RankingDecision.INCONCLUSIVE,
         ranking_rationale=(
-            "The fixture passes disagree on body side and neither pass inspected the pixels, "
-            "so the ranking stays inconclusive."
+            f"The code comparison lists {len(comparison.body_side_disagreements)} body-side "
+            "disagreement(s) and neither fixture pass inspected the pixels, so the ranking stays inconclusive."
         ),
         limitations=["Mock judge compared structured fixture fields and did not view the images."],
     )

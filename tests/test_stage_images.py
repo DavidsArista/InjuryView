@@ -1,3 +1,4 @@
+from conftest import ordered_stages
 import pytest
 
 from injury_analysis.config import RunConfig
@@ -124,7 +125,7 @@ def test_narrowing_does_not_change_observer_reuse(synthetic_video, tmp_path):
     run_pipeline(_config(synthetic_video, output), adapter=PartialObserver())
     again = PartialObserver()
     run_pipeline(_config(synthetic_video, output, resume=True), adapter=again)
-    assert [call.stage for call in again.calls] == ["candidate", "blind_reanalysis", "judge"]
+    assert ordered_stages(again.calls) == ["candidate", "blind_reanalysis", "judge"]
 
 
 def test_stage_images_must_be_a_known_mode(synthetic_video, tmp_path):

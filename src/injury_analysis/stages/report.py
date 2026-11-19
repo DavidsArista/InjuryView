@@ -245,6 +245,7 @@ def _review_section(
         "It does not force the two passes to agree.",
         "",
     ]
+    lines.extend(_bullets("Reproduced by both passes", comparison.paired))
     lines.extend(_bullets("Body-side disagreements", comparison.body_side_disagreements))
     lines.extend(_bullets("Only in the first pass", comparison.only_in_first))
     lines.extend(_bullets("Only in the second pass", comparison.only_in_second))
@@ -258,11 +259,7 @@ def _review_section(
     lines.append("")
     lines.append(judge.ranking_rationale)
     lines.append("")
-    lines.extend(_bullets("Reproduced by both passes, according to the judge", judge.reproduced_by_both_passes))
-    lines.extend(_bullets("Judge: only in the first pass", judge.only_in_first_pass))
-    lines.extend(_bullets("Judge: only in the second pass", judge.only_in_second_pass))
-    lines.extend(_bullets("Timestamp disagreements", judge.timestamp_disagreements))
-    lines.extend(_bullets("Body-side disagreements", judge.body_side_disagreements))
+    lines.extend(_bullets("Timestamp disagreements that affect a claim", judge.timestamp_disagreements))
     lines.extend(_bullets("Missing plausible alternatives", judge.missing_plausible_alternatives))
     lines.append("Claim classifications:")
     lines.append("")

@@ -95,6 +95,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analyze.add_argument("--sheet-columns", type=int, default=3)
     analyze.add_argument(
+        "--sequential",
+        action="store_true",
+        help=(
+            "Run the blind pass after the candidate stage instead of alongside the observer. "
+            "Slower; use it to debug, or so the blind pass can hit a provider's prompt cache."
+        ),
+    )
+    analyze.add_argument(
         "--subject",
         action="append",
         default=None,
@@ -205,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
             frames_per_sheet=args.frames_per_sheet,
             sheet_columns=args.sheet_columns,
             stage_images=args.stage_images,
+            parallel_passes=not args.sequential,
             subjects=args.subject or [],
         )
         result = run_pipeline(config)

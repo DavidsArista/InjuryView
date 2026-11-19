@@ -43,3 +43,20 @@ def synthetic_video(tmp_path_factory):
     path = tmp_path_factory.mktemp("media") / "reference_clip_do_not_leak.mp4"
     write_synthetic_video(path, duration_s=2, fps="30", size="320x240")
     return path
+
+
+# The blind pass runs alongside observer -> candidate, so the order of model calls is not
+# fixed. Tests compare stages in pipeline order and look calls up by stage.
+STAGE_ORDER = ("observer", "candidate", "blind_reanalysis", "judge")
+
+
+def ordered_stages(calls) -> list[str]:
+    return sorted((call.stage for call in calls), key=STAGE_ORDER.index)
+
+
+def calls_by_stage(calls) -> dict:
+    by_stage = {}
+    for call in calls:
+        assert call.stage not in by_stage, f"{call.stage} was called more than once"
+        by_stage[call.stage] = call
+    return by_stage

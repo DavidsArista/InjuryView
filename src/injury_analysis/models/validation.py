@@ -4,7 +4,9 @@ import re
 
 from injury_analysis.errors import InjuryAnalysisError
 from injury_analysis.models.schemas import (
+    Candidate,
     CandidateReport,
+    Confidence,
     JudgeReport,
     MechanismCategory,
     ObserverReport,
@@ -50,6 +52,57 @@ def validate_observer(report: ObserverReport, manifest: FrameManifest) -> list[s
         errors.extend(_lint(observation.observation_id, _strings(observation)))
     errors.extend(_lint("summary", [report.summary, *report.global_visibility_limitations]))
     return errors
+
+
+INSUFFICIENT_CANDIDATE_ID = "c-insufficient"
+
+
+def normalize_candidate(report: CandidateReport, observer: ObserverReport) -> CandidateReport:
+    """Enforce "exactly one insufficient_visual_evidence candidate" in code instead of a retry.
+
+    The rule is structural, so a second model call cannot do better than code: a missing
+    candidate is added (ranked last), and extra ones are dropped after the first. Every
+    change is written to the report's notes so the report shows what code did.
+    """
+    insufficient = [item for item in report.candidates if item.category == MechanismCategory.INSUFFICIENT]
+    if len(insufficient) == 1:
+        return report
+    notes = list(report.notes)
+    if not insufficient:
+        frame_ids = sorted({fid for item in observer.observations for fid in item.supporting_frame_ids})
+        taken = {item.candidate_id for item in report.candidates}
+        candidate_id = INSUFFICIENT_CANDIDATE_ID
+        suffix = 2
+        while candidate_id in taken:
+            candidate_id = f"{INSUFFICIENT_CANDIDATE_ID}-{suffix}"
+            suffix += 1
+        added = Candidate(
+            candidate_id=candidate_id,
+            name="Insufficient visual evidence",
+            category=MechanismCategory.INSUFFICIENT,
+            mechanism_description=(
+                "The cited frames may not show enough to tell the ranked visible-mechanism patterns apart."
+            ),
+            distinguishing_evidence_needed=["Closer or additional camera angles around the onset frames"],
+            confidence=Confidence.LOW,
+            frame_ids=frame_ids,
+        )
+        notes.append(
+            f"{candidate_id} was added by code: the model returned no insufficient_visual_evidence candidate."
+        )
+        return report.model_copy(update={"candidates": [*report.candidates, added], "notes": notes})
+    keep = insufficient[0]
+    dropped = [item.candidate_id for item in insufficient[1:]]
+    candidates = [
+        item
+        for item in report.candidates
+        if item.category != MechanismCategory.INSUFFICIENT or item is keep
+    ]
+    notes.append(
+        f"Code kept {keep.candidate_id} as the only insufficient_visual_evidence candidate "
+        f"and dropped {', '.join(dropped)}."
+    )
+    return report.model_copy(update={"candidates": candidates, "notes": notes})
 
 
 def validate_candidate(
@@ -112,11 +165,7 @@ def validate_judge(report: JudgeReport, manifest: FrameManifest) -> list[str]:
         _lint(
             "judge",
             [
-                *report.reproduced_by_both_passes,
-                *report.only_in_first_pass,
-                *report.only_in_second_pass,
                 *report.timestamp_disagreements,
-                *report.body_side_disagreements,
                 *report.unsupported_claims,
                 *report.missing_plausible_alternatives,
                 report.ranking_rationale,
@@ -201,19 +250,56 @@ def bind_judge(report: JudgeReport, manifest: FrameManifest) -> tuple[JudgeRepor
     return report.model_copy(update={"claim_assessments": updated}), notes
 
 
-_DENIALS = re.compile(
-    r"\b(?:not|no|never|without|cannot|can't|cant|does not|do not|did not|is not|was not|are not|were not)"
-    r"\b(?:\s+\w+){0,6}\s+\b(?:confirmed|confirms|severity|tears?|strains?|torn|tore|ruptures?|ruptured|"
-    r"diagnos(?:is|ed|tic|e))\b",
+# Terms the diagnostic lint looks for. Kept in one place so the negation rules below
+# cover every term the lint can flag.
+_DIAGNOSTIC_TERMS = (
+    r"confirmed|confirms|severity|tears?|strains?|torn|tore|ruptures?|ruptured|"
+    r"diagnos(?:is|ed|tic|e)|tissue\s+damage|grades?\s*[0-9]+|recovery\s+time|surgery|MRI|definitely"
+)
+_NEGATORS = (
+    r"not|no|never|without|cannot|can't|cant|isn't|aren't|wasn't|weren't|doesn't|don't|didn't|"
+    r"neither|nor|none|nothing|unable|lacks?|lacking|insufficient|beyond"
+)
+# A negation reaches at most four words and never past a comma or a conjunction, so
+# "no contact and the hamstring is torn" is still flagged.
+_CLAUSE_WORD = r"\s+(?!(?:and|but|while|although|though|yet|so|because)\b)[\w/-]+"
+# "cannot show tissue damage", "no visible tear", "without a confirmed ..."
+_NEGATED_BEFORE = re.compile(
+    rf"\b(?:{_NEGATORS})\b(?:{_CLAUSE_WORD}){{0,4}}?\s+\b(?:{_DIAGNOSTIC_TERMS})\b",
     re.IGNORECASE,
 )
+# "tissue damage cannot be determined", "severity is not visible", "a tear was not seen".
+# Requires a verb before the negation so "torn, not strained" is still flagged.
+_NEGATED_AFTER = re.compile(
+    rf"\b(?:{_DIAGNOSTIC_TERMS})\b(?:\s+[\w/-]+){{0,3}}?\s+"
+    r"(?:cannot|can't|could\s+not|is\s+not|are\s+not|was\s+not|were\s+not|isn't|aren't|"
+    r"wasn't|weren't|would\s+not|will\s+not|is\s+never|remains?\s+(?:unknown|unclear|undetermined))\b",
+    re.IGNORECASE,
+)
+# "would require MRI", "needs imaging or a diagnosis to ..." describe what video cannot do.
+_REQUIRES_OUTSIDE_EVIDENCE = re.compile(
+    r"\b(?:requires?|required|needs?|needed|would\s+need)\b(?:\s+[\w/-]+){0,3}?\s+"
+    r"\b(?:MRI|imaging|diagnos(?:is|tic|e)|clinical)\b",
+    re.IGNORECASE,
+)
+
+
+def strip_negated_terms(text: str) -> str:
+    """Remove phrases where a diagnostic term is denied or deferred, so the lint only sees assertions.
+
+    Models that follow the instructions write cautious sentences such as "video cannot show
+    tissue damage". Those must not trigger a retry; "the hamstring is torn" must.
+    """
+    cleaned = _REQUIRES_OUTSIDE_EVIDENCE.sub(" ", text)
+    cleaned = _NEGATED_BEFORE.sub(" ", cleaned)
+    cleaned = _NEGATED_AFTER.sub(" ", cleaned)
+    return re.sub(r"\bunconfirmed\b", " ", cleaned, flags=re.IGNORECASE)
 
 
 def _lint(label: str, texts: list[str]) -> list[str]:
     errors: list[str] = []
     for text in texts:
-        cleaned = _DENIALS.sub(" ", text)
-        cleaned = re.sub(r"\bunconfirmed\b", " ", cleaned, flags=re.IGNORECASE)
+        cleaned = strip_negated_terms(text)
         for pattern in _DIAGNOSTIC_PATTERNS:
             if pattern.search(cleaned):
                 errors.append(

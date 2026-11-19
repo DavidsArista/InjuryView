@@ -4,10 +4,10 @@ import base64
 import copy
 
 from injury_analysis.errors import InjuryAnalysisError
-from injury_analysis.models.model_adapter import ModelRequest
+from injury_analysis.models.model_adapter import ModelRequest, UsageTracking
 
 
-class AnthropicAdapter:
+class AnthropicAdapter(UsageTracking):
     """Vision-model adapter. Each call is a new conversation."""
 
     def __init__(self, model: str, api_key: str | None = None, client=None):

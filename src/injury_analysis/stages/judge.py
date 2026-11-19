@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from injury_analysis.constants import BLIND_BLOCK, CANDIDATE_BLOCK, OBSERVER_BLOCK, STAGE_JUDGE
+from injury_analysis.constants import (
+    BLIND_BLOCK,
+    CANDIDATE_BLOCK,
+    COMPARISON_BLOCK,
+    OBSERVER_BLOCK,
+    STAGE_JUDGE,
+)
 from injury_analysis.models.model_adapter import ModelAdapter, ModelRequest, complete_with_retry
 from injury_analysis.models.schemas import CandidateReport, JudgeReport, ObserverReport
 from injury_analysis.models.validation import bind_judge, validate_judge
+from injury_analysis.stages.compare import PassComparison, comparison_json
 from injury_analysis.stages.isolation import assert_safe_prompt
 from injury_analysis.stages.materials import json_block, metadata_block, model_images, subject_block
 from injury_analysis.stages.prompts import JUDGE_SYSTEM
@@ -22,6 +29,7 @@ def run_judge(
     blind: ObserverReport,
     output_dir: Path,
     *,
+    comparison: PassComparison,
     video_name: str,
     max_individual_images: int,
     subjects: list[str] | None = None,
@@ -29,7 +37,7 @@ def run_judge(
     request = ModelRequest(
         stage=STAGE_JUDGE,
         system=JUDGE_SYSTEM,
-        user_text=_user_text(metadata, manifest, observer, candidate, blind, subjects or []),
+        user_text=_user_text(metadata, manifest, observer, candidate, blind, comparison, subjects or []),
         images=model_images(manifest, output_dir, max_individual_images),
         response_model=JudgeReport,
         manifest=manifest,
@@ -50,6 +58,7 @@ def _user_text(
     observer: ObserverReport,
     candidate: CandidateReport,
     blind: ObserverReport,
+    comparison: PassComparison,
     subjects: list[str],
 ) -> str:
     return (
@@ -61,6 +70,9 @@ def _user_text(
         + json_block(CANDIDATE_BLOCK, candidate)
         + "\n\nBlind second observer timeline. This pass did not see the first timeline or the candidate report:\n"
         + json_block(BLIND_BLOCK, blind)
+        + "\n\nPass comparison computed by code from the two timelines above. "
+        "Use it as given; do not recompute it:\n"
+        + f"<{COMPARISON_BLOCK}>\n{comparison_json(comparison)}\n</{COMPARISON_BLOCK}>"
         + "\n\nCompare the claims with the frames and with both observation passes. "
         "Expose disagreement. Do not try to make the two runs agree.\n"
     )
