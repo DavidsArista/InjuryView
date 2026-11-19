@@ -1,3 +1,4 @@
+from conftest import ordered_stages
 import json
 
 import pytest
@@ -38,7 +39,7 @@ def _config(video, output, **overrides) -> RunConfig:
 
 
 def _stages(adapter) -> list[str]:
-    return [call.stage for call in adapter.calls]
+    return ordered_stages(adapter.calls)
 
 
 @pytest.fixture

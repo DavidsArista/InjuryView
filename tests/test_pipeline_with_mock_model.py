@@ -1,3 +1,4 @@
+from conftest import calls_by_stage, ordered_stages
 import json
 from types import SimpleNamespace
 
@@ -65,14 +66,17 @@ def test_mock_pipeline_writes_artifacts_and_keeps_passes_isolated(synthetic_vide
         assert (output / name).is_file()
     assert list((output / "frames").glob("*.jpg"))
     assert list((output / "contact_sheets").glob("*.jpg"))
-    assert [call.stage for call in adapter.calls] == [
+    assert ordered_stages(adapter.calls) == [
         "observer",
         "candidate",
         "blind_reanalysis",
         "judge",
     ]
 
-    observer_call, candidate_call, blind_call, judge_call = adapter.calls
+    calls = calls_by_stage(adapter.calls)
+    observer_call, candidate_call, blind_call, judge_call = (
+        calls["observer"], calls["candidate"], calls["blind_reanalysis"], calls["judge"]
+    )
     assert blind_call.system == observer_call.system
     assert blind_call.user_text == observer_call.user_text
     assert FIRST_PASS_MARKER not in blind_call.user_text
@@ -128,7 +132,10 @@ def test_subject_line_is_shared_and_a_changed_subject_reruns_the_observer(synthe
     adapter = MockModelAdapter()
     run_pipeline(_config(synthetic_video, output, subjects=[subject]), adapter=adapter)
 
-    observer_call, candidate_call, blind_call, judge_call = adapter.calls
+    calls = calls_by_stage(adapter.calls)
+    observer_call, candidate_call, blind_call, judge_call = (
+        calls["observer"], calls["candidate"], calls["blind_reanalysis"], calls["judge"]
+    )
     assert subject in observer_call.user_text
     assert "not a statement about contact" in observer_call.user_text
     assert observer_call.user_text == blind_call.user_text
@@ -141,7 +148,7 @@ def test_subject_line_is_shared_and_a_changed_subject_reruns_the_observer(synthe
 
     same_subject = MockModelAdapter()
     run_pipeline(_config(synthetic_video, output, resume=True, subjects=[subject]), adapter=same_subject)
-    assert [call.stage for call in same_subject.calls] == ["candidate", "blind_reanalysis", "judge"]
+    assert ordered_stages(same_subject.calls) == ["candidate", "blind_reanalysis", "judge"]
 
     other = "Defender, white jersey, purple pants"
     changed = MockModelAdapter()
@@ -149,11 +156,12 @@ def test_subject_line_is_shared_and_a_changed_subject_reruns_the_observer(synthe
         _config(synthetic_video, output, resume=True, subjects=[subject, other]),
         adapter=changed,
     )
-    assert changed.calls[0].stage == "observer"
-    assert changed.calls[0].user_text == changed.calls[2].user_text
-    assert "Player to follow:" in changed.calls[0].user_text
-    assert other in changed.calls[0].user_text
-    assert "not confused with the player to follow" in changed.calls[0].user_text
+    changed_calls = calls_by_stage(changed.calls)
+    assert "observer" in changed_calls
+    assert changed_calls["observer"].user_text == changed_calls["blind_reanalysis"].user_text
+    assert "Player to follow:" in changed_calls["observer"].user_text
+    assert other in changed_calls["observer"].user_text
+    assert "not confused with the player to follow" in changed_calls["observer"].user_text
 
 
 def test_subject_line_rejects_injury_language(synthetic_video, tmp_path):

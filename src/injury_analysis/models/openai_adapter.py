@@ -5,10 +5,10 @@ import json
 
 from injury_analysis.errors import InjuryAnalysisError
 from injury_analysis.models.anthropic_adapter import inline_schema
-from injury_analysis.models.model_adapter import ModelRequest
+from injury_analysis.models.model_adapter import ModelRequest, UsageTracking
 
 
-class OpenAIAdapter:
+class OpenAIAdapter(UsageTracking):
     """Vision-model adapter. Each call is a new conversation."""
 
     def __init__(self, model: str, api_key: str | None = None, client=None):

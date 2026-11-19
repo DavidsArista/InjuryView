@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -84,10 +85,11 @@ def run_pipeline(config: RunConfig, adapter: ModelAdapter | None = None) -> Pipe
         recorder = UsageRecorder(active)
         video_name = "\n".join(path.name for path in video_paths)
 
-        reused_observer = _reuse_observer(config, metadata, manifest, producer, model_name)
-        if reused_observer is None:
-            logger.info("Running observer")
-            observer, observer_notes, observer_requests = run_observer(
+        def blind_pass():
+            # Same frames and observer instructions in a fresh conversation. It never receives
+            # the first report or the ranking, so it can run while those are being produced.
+            logger.info("Running blind reanalysis")
+            return run_blind_reanalysis(
                 recorder,
                 metadata,
                 manifest,
@@ -96,52 +98,42 @@ def run_pipeline(config: RunConfig, adapter: ModelAdapter | None = None) -> Pipe
                 max_individual_images=config.max_individual_images,
                 subjects=config.subjects,
             )
-            _write_prompts(output_dir, observer_requests)
-            observer_artifact = _stamp_observer(
-                observer,
-                observer_notes,
-                producer,
-                model_name,
-                request_fingerprint(observer_requests[0], producer, model_name),
+
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="blind") as pool:
+            blind_future = pool.submit(blind_pass) if config.parallel_passes else None
+            try:
+                observer, observer_artifact = _observer_stage(
+                    config, metadata, manifest, output_dir, recorder, producer, model_name, video_name, stages
+                )
+
+                logger.info("Running candidate analysis")
+                candidate_manifest = _stage_manifest(config, manifest, "candidate", _observation_frames(observer))
+                candidate, candidate_requests = run_candidate_analyzer(
+                    recorder,
+                    metadata,
+                    candidate_manifest,
+                    observer,
+                    output_dir,
+                    video_name=video_name,
+                    max_individual_images=config.max_individual_images,
+                    subjects=config.subjects,
+                )
+                _write_prompts(output_dir, candidate_requests)
+                candidate_artifact = _stamp_candidate(
+                    candidate,
+                    producer,
+                    model_name,
+                    request_fingerprint(candidate_requests[0], producer, model_name),
+                )
+                _write_model(output_dir / "candidate_report.json", candidate_artifact)
+                stages["candidate"] = "ran"
+            except BaseException:
+                if blind_future is not None:
+                    blind_future.cancel()
+                raise
+            blind, blind_notes, blind_requests = (
+                blind_future.result() if blind_future is not None else blind_pass()
             )
-            _write_model(output_dir / "observer_report.json", observer_artifact)
-            stages["observer"] = "ran"
-        else:
-            observer, observer_artifact = reused_observer
-            stages["observer"] = "reused"
-
-        logger.info("Running candidate analysis")
-        candidate_manifest = _stage_manifest(config, manifest, "candidate", _observation_frames(observer))
-        candidate, candidate_requests = run_candidate_analyzer(
-            recorder,
-            metadata,
-            candidate_manifest,
-            observer,
-            output_dir,
-            video_name=video_name,
-            max_individual_images=config.max_individual_images,
-            subjects=config.subjects,
-        )
-        _write_prompts(output_dir, candidate_requests)
-        candidate_artifact = _stamp_candidate(
-            candidate,
-            producer,
-            model_name,
-            request_fingerprint(candidate_requests[0], producer, model_name),
-        )
-        _write_model(output_dir / "candidate_report.json", candidate_artifact)
-        stages["candidate"] = "ran"
-
-        logger.info("Running blind reanalysis")
-        blind, blind_notes, blind_requests = run_blind_reanalysis(
-            recorder,
-            metadata,
-            manifest,
-            output_dir,
-            video_name=video_name,
-            max_individual_images=config.max_individual_images,
-            subjects=config.subjects,
-        )
         _write_prompts(output_dir, blind_requests)
         blind_artifact = _stamp_observer(
             blind,
@@ -217,6 +209,34 @@ def run_pipeline(config: RunConfig, adapter: ModelAdapter | None = None) -> Pipe
             error=str(exc),
         )
         raise
+
+
+def _observer_stage(config, metadata, manifest, output_dir, recorder, producer, model_name, video_name, stages):
+    reused_observer = _reuse_observer(config, metadata, manifest, producer, model_name)
+    if reused_observer is not None:
+        stages["observer"] = "reused"
+        return reused_observer
+    logger.info("Running observer")
+    observer, observer_notes, observer_requests = run_observer(
+        recorder,
+        metadata,
+        manifest,
+        output_dir,
+        video_name=video_name,
+        max_individual_images=config.max_individual_images,
+        subjects=config.subjects,
+    )
+    _write_prompts(output_dir, observer_requests)
+    observer_artifact = _stamp_observer(
+        observer,
+        observer_notes,
+        producer,
+        model_name,
+        request_fingerprint(observer_requests[0], producer, model_name),
+    )
+    _write_model(output_dir / "observer_report.json", observer_artifact)
+    stages["observer"] = "ran"
+    return observer, observer_artifact
 
 
 def build_adapter(config: RunConfig) -> ModelAdapter:

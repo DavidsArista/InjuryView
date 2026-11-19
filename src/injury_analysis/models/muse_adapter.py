@@ -6,11 +6,11 @@ import json
 from injury_analysis.constants import MUSE_BASE_URL
 from injury_analysis.errors import InjuryAnalysisError
 from injury_analysis.models.anthropic_adapter import inline_schema
-from injury_analysis.models.model_adapter import ModelRequest
+from injury_analysis.models.model_adapter import ModelRequest, UsageTracking
 from injury_analysis.models.openai_adapter import _media_type, chat_usage
 
 
-class MuseAdapter:
+class MuseAdapter(UsageTracking):
     """Muse Spark through the Meta Model API. Each call is a new conversation.
 
     Muse Spark rejects a forced tool choice, so the structured result comes back

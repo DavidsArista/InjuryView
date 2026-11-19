@@ -86,9 +86,11 @@ python -m injury_analysis analyze \
 
 `--stage-images cited` (the default) sends the candidate and judge stages only the frames that earlier passes cited: the observer's frames for the candidate, and the frames cited by either observer pass or the candidate report for the judge. Each stage's prompt lists only the frames it sees, and a citation of any other frame is rejected. When those frames do not fit as individual images, new contact sheets are built from them in `stage_sheets/`. Both observer passes always see every frame. `--stage-images all` sends every frame to every stage, for comparison. The report's limitations section says how many frames each stage saw.
 
+The blind pass needs only the frames, so it runs at the same time as the observer and candidate stages. It still starts a fresh conversation and never receives the first report or the ranking. `--sequential` runs it after the candidate stage instead: slower, but useful when debugging, or when a provider's prompt cache could let the blind pass reuse the observer's images.
+
 `--source-offset SECONDS` prints an upstream source time next to each clip-relative time. Analysis stages still see clip-relative times only.
 
-Useful flags: `--broad-fps`, `--focused-fps`, `--focus-start`, `--focus-end`, `--subject`, `--model`, `--mock`, `--resume`, `--max-duration`, `--max-frames`.
+Useful flags: `--broad-fps`, `--focused-fps`, `--sequential`, `--focus-start`, `--focus-end`, `--subject`, `--model`, `--mock`, `--resume`, `--max-duration`, `--max-frames`.
 
 `--subject "QB, 18, Brown Jersey with White pants"` tells every pass who to watch. Repeat the flag to name other players so they are not confused with the first. The line is an identity, not an injury finding. A changed subject on `--resume` changes the observer's fingerprint, so the observer runs again.
 
