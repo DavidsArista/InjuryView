@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "event_id": "example-play-1",
+      "annotator": "annotator-a",
+      "subject": "QB, 18, Brown Jersey with White pants",
+      "mechanism": null,
+      "angles": [
+        {
+          "video_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "angle": "wide-sideline",
+          "playback_speed": 1.0,
+          "onset_time_s": 8.2,
+          "contact_status": "no_visible_contact",
+          "first_change_side": "unclear"
+        },
+        {
+          "video_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "angle": "tight-sideline",
+          "playback_speed": 1.0,
+          "onset_time_s": null,
+          "contact_status": "unclear",
+          "first_change_side": null
+        }
+      ]
+    }
+  ]
+}

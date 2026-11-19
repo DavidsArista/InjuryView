@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.eggs/
+dist/
+build/
+.env
+.DS_Store
+
+# Generated media and run artifacts. Keep directory placeholders.
+*.mp4
+*.mov
+*.mkv
+runs/*
+!runs/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+data/fixtures/*
+!data/fixtures/.gitkeep
