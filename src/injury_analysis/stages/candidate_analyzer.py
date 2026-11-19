@@ -5,7 +5,7 @@ from pathlib import Path
 from injury_analysis.constants import OBSERVER_BLOCK, STAGE_CANDIDATE
 from injury_analysis.models.model_adapter import ModelAdapter, ModelRequest, complete_with_retry
 from injury_analysis.models.schemas import CandidateReport, ObserverReport
-from injury_analysis.models.validation import validate_candidate
+from injury_analysis.models.validation import normalize_candidate, validate_candidate
 from injury_analysis.stages.isolation import assert_safe_prompt
 from injury_analysis.stages.materials import json_block, metadata_block, model_images, subject_block
 from injury_analysis.stages.prompts import CANDIDATE_SYSTEM
@@ -37,6 +37,7 @@ def run_candidate_analyzer(
         adapter,
         request,
         lambda item: validate_candidate(item, manifest, observer),
+        normalize=lambda item: normalize_candidate(item, observer),
     )
     return report, requests
 

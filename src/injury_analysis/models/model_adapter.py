@@ -68,8 +68,18 @@ class UsageRecorder:
             )
 
 
-def complete_with_retry(adapter: ModelAdapter, request: ModelRequest, validate) -> tuple[BaseModel, list[ModelRequest]]:
-    """Call the model, then retry once if schema or evidence checks fail."""
+def complete_with_retry(
+    adapter: ModelAdapter,
+    request: ModelRequest,
+    validate,
+    normalize=None,
+) -> tuple[BaseModel, list[ModelRequest]]:
+    """Call the model, then retry once if schema or evidence checks fail.
+
+    `normalize` runs before `validate` and fixes structural rules in code (for example, a
+    required candidate that the model left out), so those never cost a second model call.
+    Rules that need judgement stay in `validate` and still trigger the retry.
+    """
     attempts: list[ModelRequest] = []
     pending = request
     last_errors = ["The model was not called"]
@@ -82,6 +92,8 @@ def complete_with_retry(adapter: ModelAdapter, request: ModelRequest, validate) 
         except InjuryAnalysisError as exc:
             last_errors = [str(exc)[:4000]]
         else:
+            if normalize is not None:
+                report = normalize(report)
             last_errors = list(validate(report))
             if not last_errors:
                 return report, attempts
